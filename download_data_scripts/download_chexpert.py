@@ -28,6 +28,11 @@ file.download(DATA_DIR / "chexpert_findings_labels.json")
 file = table.file("impression_fixed.json")
 file.download(DATA_DIR / "chexpert_impression_labels.json")
 
+# per-image metadata (AP/PA view, age, sex)
+meta = redivis.table("aimi.chexpert_plus:5yyj:v1_0.df_chexpert_plus_240401:bavj").to_pandas_dataframe(
+    variables=["path_to_image", "frontal_lateral", "ap_pa", "age", "sex"])
+meta.to_csv(DATA_DIR / "chexpert_plus_meta.csv", index=False)
+
 (DATA_DIR / "png_train.csv").rename(DATA_DIR / "chexpert_png_train.csv")
 
 
@@ -61,65 +66,33 @@ def load_labels(json_path):
 
     return df_filtered
 
-findings = load_labels(DATA_DIR / "chexpert_findings_labels.json")
-impression = load_labels(DATA_DIR / "chexpert_impression_labels.json")
+# label from the full-report CheXbert output only (it covers both findings and impression)
 report = load_labels(DATA_DIR / "chexpert_report_labels.json")
 
-print("findings:")
-print(findings["Pleural Effusion"].value_counts())
-print("impression:")
-print(impression["Pleural Effusion"].value_counts())
-print("report:")    
-print(report["Pleural Effusion"].value_counts())
+print("report:")
+print(report["Pleural Effusion"].value_counts(dropna=False))
 
-pe = findings[["filename", "Pleural Effusion"]].merge(
-    impression[["filename", "Pleural Effusion"]],
-    on="filename",
-    how="outer",
-    suffixes=("_findings", "_impression")
-).merge(
-    report[["filename", "Pleural Effusion"]],
-    on="filename",
-    how="outer",
-    suffixes=("_findings", "_impression", "_report")
-)
+# 1 = positive, 0 / not mentioned = negative, -1 = uncertain -> dropped from the labels
+# (uncertain images stay on disk but are not in the TRAIN/TEST CSVs)
+pe = report[["filename", "Pleural Effusion"]].drop_duplicates("filename")
+uncertain = pe["Pleural Effusion"] == -1
+print(f"{uncertain.sum()} uncertain images dropped")
+pe = pe[~uncertain]
+pe["label"] = pe["Pleural Effusion"] == 1
 
-disputes = []
-for _, row in pe.iterrows():
-    if pd.notnull(row["Pleural Effusion_findings"]) and row["Pleural Effusion_findings"] != 0 and pd.notnull(row["Pleural Effusion_impression"]) and row["Pleural Effusion_impression"] != 0 and row["Pleural Effusion_findings"] != row["Pleural Effusion_impression"]:
-        disputes.append(row)
-    elif pd.notnull(row["Pleural Effusion_findings"]) and row["Pleural Effusion_findings"] != 0 and pd.notnull(row["Pleural Effusion"]) and row["Pleural Effusion"] != 0 and row["Pleural Effusion_findings"] != row["Pleural Effusion"]:
-        disputes.append(row)
-    elif pd.notnull(row["Pleural Effusion_impression"]) and row["Pleural Effusion_impression"] != 0 and pd.notnull(row["Pleural Effusion"]) and row["Pleural Effusion"] != 0 and row["Pleural Effusion_impression"] != row["Pleural Effusion"]:
-        disputes.append(row)
-
-count = 0
-for file_path in IMAGE_DIR.iterdir():
-    # Ensure it's a file and its name is in our list
-    if file_path.is_file() and file_path.name in [row["filename"] for row in disputes]:
-        file_path.unlink()
-        count +=1
-print(f"{count} disputed images removed")
-
-pe = pe[~pe["filename"].isin([row["filename"] for row in disputes])]
-pe["label"] = pe["Pleural Effusion_findings"].fillna(0) + pe["Pleural Effusion_impression"].fillna(0) + pe["Pleural Effusion"].fillna(0)
-pe["label"] = pe["label"] > 0
+# keep PA films only (AP films stay on disk but are not in the TRAIN/TEST CSVs)
+meta = pd.read_csv(DATA_DIR / "chexpert_plus_meta.csv")
+meta["filename"] = meta["path_to_image"].apply(lambda x: Path(x.replace("/", "_").split("_", 1)[-1]).with_suffix(".png").name)
+pe = pe[pe["filename"].isin(meta.loc[meta["ap_pa"] == "PA", "filename"])]
+print(f"{len(pe)} PA images kept")
 
 pe = pe[["filename", "label"]]
 
-patients = set(pe["filename"].str.split("_").str[0])
-
-testpatients = list(pd.Series(list(patients)).sample(n=1000,random_state=42))
-testimages = pe[pe["filename"].str.split("_").str[0].isin(testpatients)]
-trainimages = pe[~pe["filename"].str.split("_").str[0].isin(testpatients)]
-
-print("Peural Effusion rate testimages:")
-print(testimages["label"].mean())
+# no CheXpert test split: every experiment is tested on VinBigData, so all images are training data
 print("Peural Effusion rate trainimages:")
-print(trainimages["label"].mean())
+print(pe["label"].mean())
 
-testimages.to_csv(DATA_DIR / "chexpert_labels_TEST.csv", index=False)
-trainimages.to_csv(DATA_DIR / "chexpert_labels_TRAIN.csv", index=False)
+pe.to_csv(DATA_DIR / "chexpert_labels_TRAIN.csv", index=False)
 
 
 import cv2

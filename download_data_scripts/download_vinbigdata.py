@@ -45,11 +45,14 @@ subprocess.run([
 
 labels = pd.read_csv(DATA_DIR / "vinbigdata_labels.csv", index_col=0)
 labels["label"] = labels["class_name"].str.contains("Pleural effusion", na=False)
-labels["label"].mean()
+# one row per annotation -> one label per image (positive if any reader marked effusion)
+labels = labels.groupby(level=0)["label"].any()
+labels.mean()
 
+# sample unique images (not annotation rows, which over-samples abnormal images)
 tests = labels.index.to_series().sample(n=1000,random_state=42)
-testimages = labels.loc[labels.index.isin(tests)]["label"]
-trainimages = labels.loc[~labels.index.isin(tests)]["label"]
+testimages = labels.loc[labels.index.isin(tests)]
+trainimages = labels.loc[~labels.index.isin(tests)]
 testimages.to_csv(DATA_DIR / "vinbigdata_labels_TEST.csv")
 trainimages.to_csv(DATA_DIR / "vinbigdata_labels_TRAIN.csv")
 

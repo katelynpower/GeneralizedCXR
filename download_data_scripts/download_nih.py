@@ -41,6 +41,8 @@ zip_path.unlink()
 labels = pd.read_csv(DATA_DIR / "nih_labels.csv")
 labels["label"] = labels["Finding Labels"].apply(lambda x: x.split("|"))
 labels["label"] = labels["label"].apply(lambda x: "Effusion" in x)
+# keep PA films only (AP films are excluded but stay on disk)
+labels = labels[labels["View Position"] == "PA"]
 
 patients = labels["Patient ID"].unique()
 testpatients = list(pd.Series(list(patients)).sample(n=1000,random_state=42))
