@@ -45,7 +45,7 @@ labels["label"] = labels["label"].apply(lambda x: "Effusion" in x)
 labels = labels[labels["View Position"] == "PA"]
 
 patients = labels["Patient ID"].unique()
-testpatients = list(pd.Series(list(patients)).sample(n=1000,random_state=42))
+testpatients = list(pd.Series(list(patients)).sample(n=2000,random_state=42))
 testimages = labels[labels["Patient ID"].isin(testpatients)][["Image Index","Patient ID","label"]]
 trainimages = labels[~labels["Patient ID"].isin(testpatients)][["Image Index","Patient ID","label"]]
 testimages.to_csv(DATA_DIR / "nih_labels_TEST.csv", index=False)

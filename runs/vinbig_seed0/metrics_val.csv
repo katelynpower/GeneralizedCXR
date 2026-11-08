@@ -1,0 +1,15 @@
+,Estimate,95% CI low,95% CI high
+AUROC,0.965,0.953,0.976
+AUPRC,0.775,0.721,0.825
+Sensitivity,0.933,0.894,0.966
+Specificity,0.888,0.876,0.9
+PPV,0.38,0.356,0.411
+NPV,0.994,0.991,0.997
+F1,0.54,0.512,0.573
+Balanced accuracy,0.91,0.889,0.928
+Brier score,0.037,0.032,0.043
+Calibration intercept,-1.176,-1.478,-0.874
+Calibration slope,0.651,0.581,0.733
+ECE,0.028,0.023,0.035
+Mean predicted prob,0.095,0.089,0.102
+Observed prevalence,0.069,0.069,0.069
